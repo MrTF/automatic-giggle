@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% block title %}Log in{% endblock %}
+{% block body %}
+<h2>Log in</h2>
+<form action="" method="post">
+    <dl>
+        <dt>
+            Username:
+            <dd><input type="text" name="username" value="{{ request.form.username }}"></dd>
+        </dt>
+        <dt>
+            Password:
+            <dd><input type="password" name="password" value="{{ request.form.password }}"></dd>
+        </dt>
+    </dl>
+    <input type="submit" value="Log in">
+    Don't have an account? <a href="{{ url_for('register') }}">Register</a>
+</form>
+{% endblock %}
