@@ -5,7 +5,15 @@
 <h1>Automatic Giggle</h1>
 
 
-
+{% with flashes = get_flashed_messages() %}
+    {% if flashes %}
+        <ul>
+            {% for message in flashes %}
+                <li>{{ message }}
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endwith %}
 
 
 {% block body %}{% endblock %}

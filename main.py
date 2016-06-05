@@ -18,6 +18,8 @@ from flask import Flask, request, session, redirect, url_for, render_template, g
 from flask import flash
 
 app = Flask(__name__)
+SECRET_KEY = "secret-to-a-giggle"
+app.secret_key = SECRET_KEY
 DBFILENAME = "giggle.db"
 db = None
 
@@ -80,34 +82,53 @@ class DBHandler(metaclass=Singleton):
             Do not call directly.
         """
         try:
+            conn.commit()
             conn.close()
         except Exception as e:
             print("Failed to close DB: {1}".format(e))
 
     def query(self, sql, args=()):
         """ Executes DB scripts sql with given arguments and return all results"""
+        r = None
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(sql, args)
-            return cursor.fetchall()
+            r = cursor.fetchall()
+
+        return r
 
 
 def query_db(sql, args=()):
+    if app.debug:
+        print(args)
     handler = DBHandler(filename=DBFILENAME)
     r = handler.query(sql, args)
     return r[0] if any(r) else None
+
+
+def build_user_dict(user):
+    """ Convert DB user entry info python dict """
+    u = {}
+    u['user_id']    = user[0]
+    u['username']   = user[1]
+    u['password']   = user[2]
+    u['email']      = user[3]
+    u['country]']   = user[4]
+
+    return u
 
 
 def hash_password(pw):
     return generate_password_hash(pw)
 
 
-def match_password(pw_hash, pw):
+def match_passwords(pw_hash, pw):
     return check_password_hash(pw_hash, pw)
 
 
 def verify_username(username):
     """ Check whether username is available and meets the requirements"""
+    # TODO: min nr of letters
     rex = r"(^[a-zA-Z0-9_.+-]{3,16}$)"
     if not re.match(rex, username):
         return False
@@ -153,18 +174,23 @@ def register():
                 request.form['password'], request.form['password1']):
             msg = "Passwords do not match!"
         elif not verify_email(request.form['email']):
-            msg = "Invalid e-email address!"
+            msg = "Invalid e-mail address!"
+        # TODO: use ajax for country drowdown
         elif not request.form['country']:
             msg = "Please choose you country!"
         else:
             # register new user meeting requirements
             sql = """INSERT INTO users ( username, password, email, country )
             values (?, ?, ?, ?)"""
-            query_db(sql, request.form['username'],
+            args = [request.form['username'],
                      hash_password(request.form['password']),
-                     request.form['email'], request.form['country'])
+                     request.form['email'], request.form['country']]
+            r = query_db(sql, args)
+            msg = "You have been registered successfully!"
+            flash(msg)
             return redirect(url_for('login'))
 
+    if msg is not None: flash(msg)
     return render_template('register.html', error=msg)
 
 
@@ -178,25 +204,50 @@ def login():
     if request.method == 'POST':
         user = query_db("""SELECT * FROM users WHERE username = ?""",
                      [request.form['username']])
-        print(user)
-        # check if user exist and password matches
-        if user is None or not match_password(
-                user['password'], request.form['password']):
-            msg = "Invalid username or password"
-        else:
+
+        if app.debug:
             print(user)
+            print(request.form)
+        # check if user exist
+        if user is not None:
+            user = build_user_dict(user)
+        else:
+            msg = "Invalid username or password!"
+            flash(msg)
+            return render_template('login.html', error=msg)
+
+        # check password
+        if not match_passwords(user['password'], request.form['password']):
+            msg = "Invalid username or password!"
+            flash(msg)
+            return render_template('login.html', error=msg)
+        else:
             session['user_id'] = user['user_id']
+            g.user = user
             return redirect(url_for('welcome'))
 
-    # unsuccessful login
     return render_template('login.html', error=msg)
+
+
+@app.before_request
+def before_request():
+    """ Before every page request """
+    # Attach user info
+    g.user = None
+    if 'user_id' in session:
+        user = query_db('SELECT * FROM users WHERE user_id = ?', [session['user_id']])
+        if user is not None:
+            user = build_user_dict(user)
+
+        g.user = user
+        print(g.user)
 
 
 @app.route('/welcome')
 def welcome():
     """ Greets the members """
-    msg = "Greetings!"
-    return msg
+
+    return render_template('welcome.html')
 
 
 @app.route('/logout')

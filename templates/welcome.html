@@ -1,5 +1,10 @@
 {% extends "layout.html" %}
 {% block title %}Welcome{% endblock %}
 {% block body %}
-
+{% if g.user %}
+Greetings {{ g.user.username }}! <a href="{{ url_for('logout') }}">Log out</a>
+{% else %}
+<a href="{{ url_for('login') }}">Log in</a> or
+<a href="{{ url_for('register') }}">Register</a>
+{% endif %}
 {% endblock %}
